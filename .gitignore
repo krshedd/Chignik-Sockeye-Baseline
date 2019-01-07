@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 GitHub-Chignik-Sockeye-Baseline.Rproj
+*.html
+cmdline.txt
+fichier.in

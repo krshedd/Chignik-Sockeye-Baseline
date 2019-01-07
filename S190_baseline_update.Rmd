@@ -1,0 +1,397 @@
+---
+title: "Chignik 2018 sockeye baseline update"
+subtitle: "Sockeye_UW_7SNPs"
+creator: Chase Jalbert
+date: 08/24/2018
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Introduction with notes and key steps to follow / incorporate
+
+old but good to follow:
+V:\Analysis\4_Westward\Sockeye\Chignik Inseason 2012-2018\Baseline
+
+fairly recent ish:
+V:\Analysis\4_Westward\Sockeye\KMA Commercial Harvest 2014-2016\GitHub-KMA-Sockeye-Mixtures
+
+
+To get names of new markers, Locus control    
+-create with sock 2011 96    
++CreateLocusControl.GCL(markersuite = "Sockeye2011_96SNPs", username = username, password = password)    
++extract locus names as object    
++rm(locuscontrol)    
+-create locus control with 7 new ones    
++CreateLocusControl.GCL(markersuite = "Sockeye2011_96SNPs", username = username, password = password)    
++extract locus names as object    
++rm(locuscontrol)    
+-make new list of locus names using correct spelling from 96 andf 7 lists    
+
+
+LOKI2R Makes .gcl objects and sillyvec will be list of sillys    
+-(can get list from :readproject")    
+
+Key steps:    
+1 -QC    
+2 -analysis    
+HWE    
+pool    
+HWE    
+LD    
+markers that are poor    
+
+
+<b>Since using R-notebook dont forget to change the working directory to the project directory.</b> 
+- Preview > knit directory > Project directory
+
+OR    
+
+knitr::opts_knit$set(root.dir="V:/Analysis/4_Westward/Sockeye/Chignik Inseason 2012-2018/Baseline/GitHub-Chignik-Sockeye-Baseline") #set wd for all chunks.    
+
+
+```{r setup}
+#knitr::opts_knit$set(root.dir="V:/Analysis/4_Westward/Sockeye/Chignik Inseason 2012-2018/Baseline/GitHub-Chignik-Sockeye-Baseline") #set wd for all chunks. 
+
+#Uncomment to delete everything from environment... 
+#ls()
+#rm(list=ls(all=TRUE))
+#search()
+
+getwd() #verify the wd has been set to the project dir (all chunks!)
+
+if (!require("pacman")) install.packages("pacman"); library(pacman) # install pacman, if not installed
+p_load(adegenet,tidyverse, ape, genepop, pegas) # use pacman to load or install+load necessary packages
+
+#This sources all of the new GCL functions to this workspace
+source("C:/Users/csjalbert/Documents/r_proj/function_gcl.r")
+```
+
+
+LOKI username and password:    
+<i>intentionally hidden from output</i>
+```{r user_pwd, include = FALSE}
+# yourloki username 
+username <- "csjalbert"
+
+# your loki password
+.password <- "esox.1234"
+```
+
+
+
+# Full Marker suite using <b>Sockeye2011_96SNPs</b> and <b>Sockeye_UW_7SNPs</b>. 
+```{r marker suite}
+# create locus control for Sockeye2011_96SNPs to get locus names then remove object. 
+CreateLocusControl.GCL(markersuite = "Sockeye2011_96SNPs", username = username, password = .password)    
+loci_sock2011_96 <- LocusControl$locusnames
+rm(LocusControl)
+
+# create locus control for Sockeye_UW_7SNPs to get locus names then remove object. 
+CreateLocusControl.GCL(markersuite = "Sockeye_UW_7SNPs", username = username, password = .password)    
+loci_sockuw_7 <- LocusControl$locusnames
+rm(LocusControl)
+
+# combine into a single file
+Sockeye_all_SNPs <- c( loci_sock2011_96, loci_sockuw_7)
+
+# create locus control for all sockeye markers
+CreateLocusControl.GCL(locusnames = Sockeye_all_SNPs, username = username, password = .password)
+
+# clean up old locus names, using ls() which allows Regex
+rm(list = ls(pattern = "^loci_sock"))
+
+# remove password from file
+#rm(.password)
+```
+
+```{r}
+# Vector of silly names for ReadLoki function
+ChignikCollections <- c("SHAT96","SHAT97E","SALEC97","SBOUL97","SBROAD97","SBSPR97","SCHIA97E","SCHIA97M","SCHIG98","SCLARK96","SCLRK97E","SFAN97","SCHIA08","SCHIG08","SCLARK08","SCUCU08","SHAT08E","SWESTF08")
+
+
+## Pull all data for each silly code and create .gcl objects for each
+LOKI2R.GCL(sillyvec=ChignikCollections, username = username, password = .password)
+objects(pattern = "\\.gcl")
+```
+
+```{r}
+## Get sample size by locus
+OriginalSampleSizebyLocus <- SampSizeByLocus.GCL(sillyvec = ChignikCollections,loci = Sockeye_all_SNPs)
+min(OriginalSampleSizebyLocus) ## 69, fine.
+#write.table(OriginalSampleSizebyLocus,"Output/OriginalSampleSizebyLocus.txt",sep='\t',col.names=NA, row.names=T)
+apply(OriginalSampleSizebyLocus, 1,range)
+```
+
+```{r}
+# saving objects
+save_objects("Sockeye_all_SNPs", path = "../2018/Objects")
+
+# load objects
+#load_objects(path = "../2018/Objects")
+
+# save sillys, no quotes so each as an individual file:
+save_sillys(sillyvec = ChignikCollections, path = "../2018/sillys")
+
+# export table of sample size by locus, csv since nice tidy df already and not R dependent. 
+write_csv(OriginalSampleSizebyLocus, path = "../2018/Output/samplesizebylocus.csv")
+```
+
+
+# QA section, obtain number of individuals in collections
+
+```{r original_N}
+# get number of individuals in SILLY, for all sillys, prior to removing missing loci individuals
+OriginalColSize <- sapply(paste(ChignikCollections,".gcl",sep=''), function(x) get(x)$n)
+write.table(OriginalColSize, file = "../2018/Output/OriginalColSize.csv",sep=",", col.names=NA, row.names=T)
+```
+
+
+```{r remove_20per}
+# Remove individuals with >20% missing data
+MissLoci <- RemoveIndMissLoci.GCL(sillyvec = ChignikCollections, proportion = 0.8)
+#write.table(MissLoci, file = "../2018/Output/missing.csv",sep=",", col.names=NA, row.names=T)
+```
+
+Get the number of individuals per silly after removing the missing loci inds
+
+```{r}
+ColSizePostMissLoci <- sapply(paste(ChignikCollections,".gcl",sep=''), function(x) get(x)$n)
+
+write.table(OriginalColSize, file = "../2018/Output/ColSizePostMissLoci.csv",sep=",", col.names=NA, row.names=T)
+
+#calculate difference
+OriginalColSize - ColSizePostMissLoci
+```
+
+
+Create matrix for collection information
+
+```{r}
+Chignik2018SockeyeSampleSizes <- matrix(data=NA,nrow=18,ncol=4,dimnames=list(names(OriginalColSize),c("Initial","Missing","Duplicate","Final")))
+
+Chignik2018SockeyeSampleSizes[,1] <- OriginalColSize
+
+Chignik2018SockeyeSampleSizes[,2] <- OriginalColSize - ColSizePostMissLoci
+```
+
+
+Check within collections for duplicate individuals, at 95% level
+
+```{r}
+DuplicateCheck95MinProportion <- CheckDupWithinSilly.GCL(sillyvec = ChignikCollections,loci = Sockeye_all_SNPs, quantile = NULL, minproportion = 0.95)
+
+#str(DuplicateCheck95MinProportion)
+
+# create a report summary of duplciates
+DuplicateCheckReportSummary <- sapply(ChignikCollections, function(x) DuplicateCheck95MinProportion[[x]]$report)
+
+## Remove duplicate individuals
+RemovedDups <- RemoveDups.GCL(DuplicateCheck95MinProportion)
+
+## Get number of individuals per silly after removing duplicate individuals
+ColSizePostDuplicate <- sapply(paste(ChignikCollections,".gcl",sep=''), function(x) get(x)$n)
+
+# write table containing duplicates
+write.table(ColSizePostDuplicate,file= "../2018/Output/ColSizePostDuplicate.csv",sep=",", col.names=NA, row.names=T)
+
+#check N lost
+ColSizePostMissLoci - ColSizePostDuplicate
+
+# write output to matrix created above
+Chignik2018SockeyeSampleSizes[,3] <- ColSizePostMissLoci - ColSizePostDuplicate
+
+Chignik2018SockeyeSampleSizes[,4] <- ColSizePostDuplicate
+```
+
+# Allele frequency plots
+
+```{r allele freq setup}
+#import list of silly, groups, and locations
+Groups <- read_csv(file = "../2018/Objects/group_locations.csv")
+
+#character vector of pop Names without the ".gcl" extension
+sillyvec <- unlist(Groups[1])
+
+#numeric vector of group numbers the same length as sillyvec
+groupvec <- unlist(Groups[2])
+
+#A numeric vector of R colors the same length as max(groupvec)
+mycolor <- c("black","red")
+
+# assign colors for each pop, based on groups
+PopCol = mycolor[(groupvec)]
+```
+
+
+```{r frequency plots}
+loci <- LocusControl$locusnames
+
+Freq <- FreqPop.GCL(sillyvec = sillyvec, loci = loci) 
+
+Freq <- Freq[,,"Allele 1"] / (Freq[,,"Allele 1"]+ Freq[,,"Allele 2"])
+
+pdf(file = "../2018/freqplots/Chignik103SNPfreqplots.pdf", width = 11, height = 8.5, family = "Times", pointsize = 20)
+for(locus in loci){
+  plot(Freq[,locus],main=locus,col=PopCol,pch=19,ylim=c(0,1),ylab="Freqency",xlab="Collection")
+  lines(supsmu(seq(length(sillyvec)),Freq[,locus])) 
+}; rm(locus)
+dev.off()
+```
+
+# Test for HWE
+
+Here I am going to test for HWE using genepop package, so we dont have to export and analyze outside of the R-environement (sort of). All genepop does is export the .txt file, then read that file and run genepop, within r, but outputs to a .P file. There is no R output, so we have to read the .P file in using ReadGenepopHWE.GCL. This is handy because it avoids having to run gnepop.exe outside of the R session, hence avoids manually moving files.    
+
+Another option is to export a genepop file, reimport as genind, then run hw.test (pegas package). A brief look shows that Pegas and genepop produce similar estimates of HWE. After talking to Kyle, it was decided that genepop is the standard so we will rely on that program / package for our analyses. 
+
+```{r HWE}
+# first convert to genepop format using GCL functions
+gcl2Genepop.GCL(sillyvec = ChignikCollections, loci = loci, path = "../2018/genepop/ChignikCollections.txt", VialNums = T)
+
+# HW genotypic proportions using 'genepop'
+test_HW("../2018/genepop/ChignikCollections.txt", which = "Proba")
+
+# parse results using GCL function
+HWE <- ReadGenepopHWE.GCL(file = "../2018/genepop/ChignikCollections.txt.P")
+str(HWE)
+```
+
+
+Now we can identify any fixed loci. It looks like One_txnip_401 (18) and probably One_metA-253 (17.99451) - all others seem okay, although some fairly close to fixed.
+
+```{r}
+FixedSNPs <- apply(Freq,2,sum)
+
+FixedSNPs <- names(FixedSNPs[FixedSNPs==0 | FixedSNPs==18])
+
+#(1-0.9945055)*SCLARK08.gcl$n*2 # xxx FROM TYLER, necessary?? 
+```
+
+
+```{r}
+test_HW("../2018/genepop/ChignikCollections.txt", which = "Proba")
+HWE <- ReadGenepopHWE.GCL(file = "../2018/genepop/ChignikCollections.txt.P")
+str(HWE)
+
+# just nuclear loci
+locinuclear <- loci[LocusControl$ploidy==2]
+
+# convert to genepop format
+gcl2Genepop.GCL(sillyvec = ChignikCollections, loci = locinuclear, path = "../2018/genepop/ChignikCollectionsnuclearloci.txt",VialNums = TRUE)
+
+# HW genotypic proportions using 'genepop'
+test_HW("../2018/genepop/ChignikCollectionsnuclearloci.txt", which = "Proba")
+
+# parse results using GCL function
+HWE.N <- ReadGenepopHWE.GCL(file = "../2018/genepop/ChignikCollectionsnuclearloci.txt.P")
+str(HWE.N)
+```
+
+# Pooling
+
+Data cleanup and checks
+```{r}
+hist(HWE.N$SummaryPValues["One_sys1-230",], breaks = seq(0, 1, by = 0.05)) 
+
+# To see if there ar eissues, we can filter by above marker and see which way WC FIS is headed... consistent or not. 
+# It looks like it goes either way (negative or positive) so no consistency. likely fine then
+HWE.N$DataByPop %>% 
+  filter(Locus == "One_sys1-230") %>% 
+           select(starts_with("WC"))
+
+
+hist(HWE.N$SummaryPValues["One_STC-410",], breaks = seq(0, 1, by = 0.05))
+```
+
+So, we removed all fixed loci and those which significaly departed from HWE (P<0.1), note the different P-value than the ADFG publication, for this expersize.    and sig depart from HWE by significantly departed I mean p < 0.1
+
+```{r}
+# drop 2 below 0.1, and 2 fixed 
+locidrop <- c("One_sys1-230", "One_STC-410", "One_txnip_401", "One_metA-253")
+
+locipostdrop <- loci[ ! loci %in% locidrop]
+
+Chignik_Freq <- FreqPop.GCL(sillyvec = ChignikCollections, loci = locipostdrop)
+str(Chignik_Freq)
+
+```
+
+
+Now, move onto pooling    
+
+Check temporal colletions for pooling
+```{r}
+#import list of silly, groups, and locations
+Groups <- read_csv(file = "../2018/Objects/group_locations.csv")
+
+#add collections that are temporal (same silly over years). Earlky and Late are divided, sometimes
+ChignikTemporalPool <- list(ChignikCollections[c(7,13)], # SCHIA08, SCHIA97E
+                            ChignikCollections[c(9,14)], # SCHIG98.gcl, SCHIG08.gcl
+                            ChignikCollections[c(11,15)], # SCLRK97E.gcl, SCLARK08.gcl
+                            ChignikCollections[c(2,17)]) # SHAT97E.gcl, SHAT08E.gcl
+  
+
+
+#perform fisher test on temporal collections
+ChignikFisherTemporalResults <- FishersTest.GCL(freq = Chignik_Freq, loci = locipostdrop, test = ChignikTemporalPool)
+
+sink(file="../2018/pooling/ChignikFisherTemporalResults.csv")
+print(ChignikFisherTemporalResults)
+sink()
+
+str(ChignikFisherTemporalResults)
+ChignikFisherTemporalResults$OverallResults
+```
+
+Now pooling objects..
+
+```{r}
+## Pool Temporal Collections
+lapply(1: length(ChignikTemporalPool),
+        function(x){
+          PoolCollections.GCL(collections = ChignikTemporalPool[[x]],
+                              loci = locipostdrop,
+                              IDs = NULL,
+                              newname = paste(ChignikTemporalPool[[x]],
+                                              collapse = "."))
+          })
+ 
+# show just the gcl objects, so samples, note the regex due to .GCL functions showing up without
+ls(pattern="^*.*[0-9].*.gcl")
+
+#import list of silly, groups, and locations
+Groups <- read_csv(file = "../2018/Objects/group_locations.csv")
+
+# load temporal pooling from csv
+ChignikTemporalCollections <- Groups$ChignikTemporalCollections %>% 
+  na.omit()
+
+ChignikTemporalFreq <- FreqPop.GCL(sillyvec = ChignikTemporalCollections, loci = locipostdrop)
+```
+
+
+Now lets do the 1st non-temporal pooling test:
+
+```{r}
+#add collections that are temporal (same silly over years). Earlky and Late are divided, sometimes
+ChignikPool1 <- list(ChignikTemporalCollections[c(7,13)], # SCHIA08, SCHIA97E
+                            ChignikTemporalCollections[c(9,14)], # SCHIG98.gcl, SCHIG08.gcl
+                            ChignikTemporalCollections[c(11,15)], # SCLRK97E.gcl, SCLARK08.gcl
+                            ChignikTemporalCollections[c(2,17)]) # SHAT97E.gcl, SHAT08E.gcl
+  
+
+
+#perform fisher test on temporal collections
+ChignikFisherTemporalResults <- FishersTest.GCL(freq = Chignik_Freq, loci = locipostdrop, test = ChignikTemporalPool)
+
+sink(file="../2018/pooling/ChignikFisherTemporalResults.csv")
+print(ChignikFisherTemporalResults)
+sink()
+
+str(ChignikFisherTemporalResults)
+ChignikFisherTemporalResults$OverallResults
+```
+
+
+
