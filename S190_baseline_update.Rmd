@@ -288,6 +288,78 @@ HWE.N <- ReadGenepopHWE.GCL(file = "../2018/genepop/ChignikCollectionsnuclearloc
 str(HWE.N)
 ```
 
+# Linkage disequilibrium
+
+Here I am going to test for LD among the 7 new RAD SNPs from Wes Larson's "Islands of Divergence" paper. Included in his paper, is Supplemental Table S4 which includes position information for these 7 SNPs based on their linkage map. Based on Table S4, 6 of the 7 SNPs appear to be on linkage group 13, with one on LG 12. This gives us enough information to *a priori* assume that we can only select one of the LG 13 SNPs in addition to the LG 12 SNP.
+
+I ran Genepop from the executible for the file "genepop/ChignikCollections.txt", which has all 103 SNPS and all 18 Chignik collections. Here we can read in the results and see what is statistically in LD.
+
+```{r read_LD}
+(LD <- ReadGenepopDis.GCL(file = "../2018/genepop/ChignikCollections.txt.DIS") %>% 
+  as_tibble())
+```
+Typically we determine that two markers are linked if they are P < 0.5 for 1/2 of all populations/collections.
+
+```{r LD_npops}
+LD <- LD %>% 
+  gather(silly, pvalue, -Locus1, -Locus2, -Overall) %>% 
+  group_by(Locus1, Locus2) %>% 
+  mutate(n_pops_fail = sum(pvalue < 0.05)) %>% 
+  spread(silly, pvalue)
+
+LD %>% 
+  ggplot(aes(x = n_pops_fail)) +
+  geom_histogram() +
+  geom_vline(xintercept = 9)
+```
+
+Which pairs of loci are "linked" according to the 1/2 pops P < 0.5 rule?
+
+```{r LD_fail}
+LD %>% 
+  filter(n_pops_fail >= 9) %>% 
+  select(Locus1, Locus2, Overall, n_pops_fail) %>% 
+  arrange(Locus1, Locus2)
+```
+
+Some of these are not surprising since we already know that the two mitochondrial markers are linked, as well as *MHC* and *Tf_ex*.
+
+Since we are most interested in the linkage relationships among the 7 Islands of Divergence RAD SNPs, let's just look at those.
+
+```{r LD_RAD}
+RAD_loci <- grep(pattern = "RAD", x = unique(c(LD$Locus1, LD$Locus2)), value = TRUE)
+
+LD %>% 
+  filter(Locus1 %in% RAD_loci & Locus2 %in% RAD_loci) %>% 
+  select(Locus1, Locus2, Overall, n_pops_fail) %>% 
+  ggplot(aes(x = Locus1, y = Locus2, fill = n_pops_fail)) + 
+  geom_tile() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  ggtitle("Number of pops with LD P < 0.05\nIslands of Divergence RAD SNPs")
+```
+
+Based on the allele frequency plots generated above and the linkage information that we already knew about from Table S4, it looks like we'd be safe adding *One_RAD18507* and *One_RAD27165* to our **inseason marker panel of 24 SNPs**. Since we are adding two SNPs, we need to kick out two of the old ones currently in *loci22*. Based on Tyler's work for the 2012 version of this baseline (see "../2012/2012 Chignik Baseline.xlsx" tab "87 to 24"), we can conclude that the two "best" SNPs to drop would be *One_U503-170* and *One_ZNF-61*.
+
+## Final marker panel decisions
+**Add** the following two RAD SNPs from Wes' Islands of Divergence work
+
+1. *One_RAD18507*
+2. *One_RAD27165*
+
+**Drop** the following two "old" loci in *loci22* from the 2012 baseline 
+
+1. *One_U503-170*
+2. *One_ZNF-61*
+
+Save this updated markerset as *loci22_RAD*.
+```{r loci22_RAD}
+loci22 <- dget(file = "../../Mixtures/2018/Objects/loci22.txt")
+
+loci22_RAD <- sort(c(setdiff(loci22, c("One_U503-170", "One_ZNF-61")), "One_RAD18507", "One_RAD27165"))
+save_objects(objects = "loci22_RAD", path = "../2018/Objects/")
+```
+
+
 # Pooling
 
 Data cleanup and checks
