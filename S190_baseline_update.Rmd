@@ -42,13 +42,6 @@ LD
 markers that are poor    
 
 
-<b>Since using R-notebook dont forget to change the working directory to the project directory.</b> 
-- Preview > knit directory > Project directory
-
-OR    
-
-knitr::opts_knit$set(root.dir="V:/Analysis/4_Westward/Sockeye/Chignik Inseason 2012-2018/Baseline/GitHub-Chignik-Sockeye-Baseline") #set wd for all chunks.    
-
 
 ```{r setup}
 #knitr::opts_knit$set(root.dir="V:/Analysis/4_Westward/Sockeye/Chignik Inseason 2012-2018/Baseline/GitHub-Chignik-Sockeye-Baseline") #set wd for all chunks.
@@ -344,7 +337,7 @@ for (locus in loci) {
     ylab = "Freqency",
     xlab = "Collection"
   )
-  text(x = Freq[, locus], labels = sillyvec, cex = 0.7, pos = 1, srt = 90, offset = 1.5) # add population names to file
+  text(x = Freq[, locus], labels = sillyvec, cex = 0.7, pos = 1, srt = 90, offset = 1.5, xpd = TRUE) # add population names to file
   lines(supsmu(seq(length(sillyvec)), Freq[, locus]))
 }
 
@@ -533,7 +526,7 @@ For example, here are the allelee frequency plots and information for
 <!-- hist(HWE.N$SummaryPValues["One_STC-410", ], breaks = seq(0, 1, by = 0.05)) -->
 <!-- ``` -->
 
-<!-- So, we removed all fixed loci and those which significaly departed from HWE (P<0.1), note the P-value is not the same here as in the ADFG publication.  -->
+<!-- So, we removed all fixed loci and those which significaly departed from HWE (P<0.1), note the P-value is not the same here as in the ADFG publication. -->
 
 <!-- ```{r} -->
 <!-- # drop 2 below 0.1, and 2 fixed -->
@@ -557,7 +550,7 @@ For example, here are the allelee frequency plots and information for
 <!-- #import list of silly, groups, and locations -->
 <!-- Groups <- read_csv(file = "../2018/Objects/group_locations.csv") -->
 
-<!-- #add collections were collected during mutliple years. Somtimes Early and Late are different so here I am only looking at the early (##E) or 'normal' collections (##).  -->
+<!-- #add collections were collected during mutliple years. Somtimes Early and Late are different so here I am only looking at the early (##E) or 'normal' collections (##). -->
 <!-- ChignikTemporalPool <- -->
 <!--   list( -->
 <!--     ChignikCollections[ChignikCollections %in% c("SCHIA97E", "SCHIA08")], -->
@@ -619,7 +612,7 @@ For example, here are the allelee frequency plots and information for
 <!--          ) -->
 <!--        }) -->
 
-<!-- # show just the gcl objects, or samples.  -->
+<!-- # show just the gcl objects, or samples. -->
 <!-- ls(pattern = "^*.*[0-9].*.gcl") -->
 
 <!-- # load temporal pooling from csv -->
@@ -636,7 +629,7 @@ For example, here are the allelee frequency plots and information for
 <!-- ## Pooling tests 1 ## -->
 
 <!-- ```{r, warning=FALSE} -->
-<!-- # First non-temporal pooling test. This was done on distance and is based on Tylers 2012 baseline.  -->
+<!-- # First non-temporal pooling test. This was done on distance and is based on Tylers 2012 baseline. -->
 <!-- ChignikPool1 <- -->
 <!--   list( -->
 <!--     ChignikTemporalCollections[ChignikTemporalCollections %in% c("SBROAD97", "SBSPR97")], -->
