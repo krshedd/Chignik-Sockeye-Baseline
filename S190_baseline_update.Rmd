@@ -150,7 +150,7 @@ min(OriginalSampleSizebyLocus) ## 69, fine.
 
 write.table(
   OriginalSampleSizebyLocus,
-  "Output/OriginalSampleSizebyLocus.txt",
+  "../2018/Output/OriginalSampleSizebyLocus.txt",
   sep = '\t',
   col.names = NA,
   row.names = T
@@ -164,7 +164,7 @@ apply(OriginalSampleSizebyLocus, 1, range)
 save_objects("Sockeye_all_SNPs", path = "../2018/Objects")
 
 # load objects
-load_objects(path = "../2018/Objects")
+#load_objects(path = "../2018/Objects")
 
 # save sillys, no quotes so each as an individual file:
 save_sillys(sillyvec = ChignikCollections, path = "../2018/sillys")
@@ -197,13 +197,13 @@ write.table(
 MissLoci <-
   RemoveIndMissLoci.GCL(sillyvec = ChignikCollections, proportion = 0.8)
 
-write.table(
-  MissLoci,
-  file = "../2018/Output/missing.csv",
-  sep = ",",
-  col.names = NA,
-  row.names = T
-) # xxxcheck this," arguments imply differing number of rows..." 
+# write.table(
+#   MissLoci,
+#   file = "../2018/Output/missing.csv",
+#   sep = ",",
+#   col.names = NA,
+#   row.names = T
+# ) # xxxcheck this," arguments imply differing number of rows..." 
 ```
 
 Get the number of individuals per silly after removing the missing loci inds
@@ -482,18 +482,418 @@ loci22_RAD <-
 save_objects(objects = "loci22_RAD", path = "../2018/Objects/")
 ```
 
+# Frequency Plots Loci22RAD
 
-# Combining Loci
+I just wanted the allele plots of interest in one file and thought this would be easier than editing the PDF from earlier. Here, I've removed the GPDH and MHC combined markers to allow for plotting. 
+```{r AlleleFreq22}
+loci20plot <- loci22_RAD[-c(6,8)]
 
-This is where combining loci
-```{r combining loci}
-CombineLoci.GCL(sillyvec = sillyvec ,markerset = c("GDPH1", "GDPH2"),update = T)
-CombineLoci.GCL(sillyvec = sillyvec ,markerset = c("MCH1", "MHC2"),update = T)
+Freq22 <- FreqPop.GCL(sillyvec = sillyvec, loci = loci20plot)
+
+Freq22 <-
+  Freq22[, , "Allele 1"] / (Freq22[, , "Allele 1"] + Freq22[, , "Allele 2"])
+
+pdf(
+  file = "../2018/freqplots/Chignik22SNPfreqplots_popnames.pdf",
+  width = 11,
+  height = 8.5,
+  family = "Times",
+  pointsize = 20
+)
+for (locus in loci20plot) {
+  plot(
+    Freq22[, locus],
+    main = locus,
+    col = PopCol,
+    pch = 19,
+    ylim = c(0, 1),
+    ylab = "Freqency",
+    xlab = "Collection"
+  )
+  text(
+    x = Freq22[, locus],
+    labels = sillyvec,
+    cex = 0.7,
+    pos = 1,
+    srt = 90,
+    offset = 1.5,
+    xpd = TRUE
+  ) # add population names to file
+  lines(supsmu(seq(length(sillyvec)), Freq22[, locus]))
+}
+
+rm(locus)
+
+dev.off()
 ```
 
 
 
+# Combining Loci
 
+Since I am just using the final 22 loci I need to combine GPDH and MHC2 into their final forms. 
+```{r combining loci}
+CombineLoci.GCL(sillyvec = sillyvec ,markerset = c("One_GPDH2","One_GPDH"),update = T)
+
+CombineLoci.GCL(sillyvec = sillyvec ,markerset = c("One_MHC2_251","One_MHC2_190"),update = T)
+```
+
+
+# Pooling with just RAD 22 loci
+
+Here, I am running through fishers tests using ONLY the final set of 22 loci. 
+
+```{r AlleleFrequenciesRAD22}
+Chignik_Freq <-
+  FreqPop.GCL(sillyvec = ChignikCollections, loci = loci22_RAD)
+
+str(Chignik_Freq)
+```
+
+## Temporal Pooling Test ##
+
+First step is to pool temporal collections. 
+```{r TemporalPool1, warning=FALSE}
+ChignikTemporalPool <-
+  list(
+    ChignikCollections[ChignikCollections %in% c("SCHIA97E", "SCHIA08")],
+    ChignikCollections[ChignikCollections %in% c("SCHIG98", "SCHIG08")],
+    ChignikCollections[ChignikCollections %in% c("SCLRK97E", "SCLARK08")],
+    ChignikCollections[ChignikCollections %in% c("SHAT97E", "SHAT08E")]
+  )
+
+#perform fisher test on temporal collections
+ChignikFisher22RADTemporalResults <- FishersTest.GCL(freq = Chignik_Freq, loci = loci22_RAD, test = ChignikTemporalPool) # Note warnings here but ignored using warning = FALSE for this chunk. Warning is "'hybrid' is ignored for a 2 x 2 table"
+
+sink(file="../2018/pooling/ChignikFisher22RADTemporalResults.csv")
+print(ChignikFisher22RADTemporalResults)
+sink()
+
+str(ChignikFisher22RADTemporalResults)
+
+ChignikFisher22RADTemporalResults$OverallResults
+```
+
+```{r TemporalHistograms}
+hist(
+  ChignikFisher22RADTemporalResults$ResultsByLocus$SCHIA97E.SCHIA08[, 2],
+  main = "SCHIA97E.SCHIA08",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisher22RADTemporalResults$ResultsByLocus$SCHIA97E.SCHIA08 %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisher22RADTemporalResults$ResultsByLocus$SCHIG98.SCHIG08[, 2],
+  main = "SCHIG98.SCHIG08",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisher22RADTemporalResults$ResultsByLocus$SCLRK97E.SCLARK08[, 2],
+  main = "SCLRK97E.SCLARK08",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisher22RADTemporalResults$ResultsByLocus$SCLRK97E.SCLARK08 %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisher22RADTemporalResults$ResultsByLocus$SHAT97E.SHAT08E[, 2],
+  main = "SHAT97E.SHAT08E",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisher22RADTemporalResults$ResultsByLocus$SHAT97E.SHAT08E %>% 
+  arrange(pval)
+```
+
+
+Due to overll pvalus, locus-specific values, and allele frequency plots I only want to combine "SCHIG98" and "SCHIG08". For all others, the markers with the highest impact are the important ones (i.e., RAD27165, U1004-183).    Further testing on pairs and geographically similar populations will follow. 
+
+
+```{r TemporalPool2}
+Groups <- read_csv(file = "../2018/Objects/group_locations.csv") # Import list of silly, groups, and locations
+
+ChignikTemporalPool2 <- list(ChignikTemporalPool[[2]])
+
+
+lapply(1:length(ChignikTemporalPool2),
+       function(x) {
+         PoolCollections.GCL(
+           collections = ChignikTemporalPool2[[x]],
+           loci = loci22_RAD,
+           IDs = NULL,
+           newname = paste(ChignikTemporalPool2[[x]],
+                           collapse = ".")
+         )
+       })
+
+# show just the gcl objects, or samples.
+ls(pattern = "^*.*[0-9].*.gcl")
+
+# load temporal pooling from csv
+ChignikTemporalCollections <- Groups$ChignikTemporalCollections %>%
+  na.omit()
+
+ChignikTemporalFreq <-
+  FreqPop.GCL(sillyvec = ChignikTemporalCollections, loci = loci22_RAD)
+```
+
+Now, the first non-temporal pooling test. I'll start with pairwise comparisons among early, mid, and late groups then move onto geographic locality. 
+
+
+## Pooling tests 1 ##
+
+```{r Pool1Test, warning=FALSE}
+# First, pairwise comparisons for early and late for each temporal collection. 
+ChignikPool1 <-
+  list(
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SCHIA97E", "SCHIA97M")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SCHIA08", "SCHIA97M")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SCLRK97E", "SCLARK96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SCLARK08", "SCLARK96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT97E", "SHAT96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SHAT96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SHAT97E")]
+  )
+
+#perform fisher test on temporal collections
+ChignikFisherPool1Results <- FishersTest.GCL(freq = ChignikTemporalFreq, loci = loci22_RAD, test = ChignikPool1)
+
+sink(file="../2018/pooling/ChignikFisherPool1Results.csv")
+print(ChignikFisherPool1Results)
+sink()
+
+str(ChignikFisherPool1Results)
+
+ChignikFisherPool1Results$OverallResults
+```
+
+Overall p-values show that none of the above populations should be pooled. Also, a quick peek at the histograms below confirm this. 
+
+```{r Pool1Hist}
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SCHIA97E.SCHIA97M[, 2],
+  main = "SCHIA97E.SCHIA97M",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SCHIA08.SCHIA97M[, 2],
+  main = "SCHIA08.SCHIA97M",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SCLRK97E.SCLARK96[, 2],
+  main = "SCLRK97E.SCLARK96",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SCLARK08.SCLARK96[, 2],
+  main = "SCLARK08.SCLARK96",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SHAT97E.SHAT96[, 2],
+  main = "SHAT97E.SHAT96",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+hist(
+  ChignikFisherPool1Results$ResultsByLocus$SHAT08E.SHAT96[, 2],
+  main = "SHAT08E.SHAT96",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+```
+
+## Pooling tests 2 ##
+
+```{r Pool2Test, warning=FALSE}
+# First, pairwise comparisons for early and late for each temporal collection. 
+ChignikPool2 <-
+  list(
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT97E", "SCUCU08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT96", "SCUCU08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SCUCU08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT96", "SCLARK96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT96", "SCLRK97E")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT96", "SCLARK08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT97E", "SCLARK96")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT97E", "SCLRK97E")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT97E", "SCLARK08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SCLARK08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SCLARK08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SHAT08E", "SCLARK08")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SFAN97", "SALEC97")],
+    ChignikTemporalCollections[ChignikTemporalCollections %in% c("SBROAD97", "SBSPR97")]
+  )
+
+# perform fisher test on temporal collections
+ChignikFisherPool2Results <- FishersTest.GCL(freq = ChignikTemporalFreq, loci = loci22_RAD, test = ChignikPool2)
+
+sink(file="../2018/pooling/ChignikFisherPool2Results.csv")
+print(ChignikFisherPool2Results)
+sink()
+
+str(ChignikFisherPool2Results)
+
+ChignikFisherPool2Results$OverallResults
+```
+
+```{r Pool2Hist}
+hist(
+  ChignikFisherPool2Results$ResultsByLocus$SCUCU08.SHAT97E[, 2],
+  main = "SHAT97E.SCUCU08",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool2Results$ResultsByLocus$SCUCU08.SHAT97E %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisherPool2Results$ResultsByLocus$SCUCU08.SHAT08E[, 2],
+  main = "SCUCU08.SHAT08E",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool2Results$ResultsByLocus$SCUCU08.SHAT08E %>% 
+  arrange(pval)
+```
+
+From here, I only want to pool SALEC97 + SFAN97. The rest of the comparisons dont make sense. Especially in light of allele frequency plots and P-values. 
+
+<b> xxx NEED TO POOL the SCHIG SAMPLES FROM ABOVE! XXXO TO DO </b>
+
+```{r Pool3}
+Groups <- read_csv(file = "../2018/Objects/group_locations.csv") # Import list of silly, groups, and locations
+
+ChignikPool2 <- list(ChignikPool2[[13]])
+
+
+lapply(1:length(ChignikPool2),
+       function(x) {
+         PoolCollections.GCL(
+           collections = ChignikPool2[[x]],
+           loci = loci22_RAD,
+           IDs = NULL,
+           newname = paste(ChignikPool2[[x]],
+                           collapse = ".")
+         )
+       })
+
+# show just the gcl objects, or samples.
+ls(pattern = "^*.*[0-9].*.gcl")
+
+# load  pooling from csv
+ChignikPool2Collections <- Groups$ChignikPool2Collections %>%
+  na.omit()
+
+ChignikPool2Freq <-
+  FreqPop.GCL(sillyvec = ChignikPool2Collections, loci = loci22_RAD)
+```
+
+
+## Pooling tests 3 ##
+
+```{r Pool3Test, warning=FALSE}
+# First, pairwise comparisons for early and late for each temporal collection. 
+ChignikPool3 <-
+  list(
+    ChignikPool2Collections[ChignikPool2Collections %in% c("SBOUL97", "SBSPR97")],
+    ChignikPool2Collections[ChignikPool2Collections %in% c("SBOUL97", "SBROAD97")],
+    ChignikPool2Collections[ChignikPool2Collections %in% c("SBOUL97", "SALEC97.SFAN97")], 
+    ChignikPool2Collections[ChignikPool2Collections %in% c("SBROAD97", "SALEC97.SFAN97")],
+    ChignikPool2Collections[ChignikPool2Collections %in% c("SBSPR97", "SALEC97.SFAN97")]
+  )
+
+# perform fisher test on temporal collections
+ChignikFisherPool3Results <- FishersTest.GCL(freq = ChignikPool2Freq, loci = loci22_RAD, test = ChignikPool3)
+
+sink(file="../2018/pooling/ChignikFisherPool3Results.csv")
+print(ChignikFisherPool3Results)
+sink()
+
+str(ChignikFisherPool3Results)
+
+ChignikFisherPool3Results$OverallResults
+```
+
+
+```{r Pool3Hist}
+hist(
+  ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SBSPR97[, 2],
+  main = "SBOUL97.SBSPR97",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SBSPR97 %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SBROAD97[, 2],
+  main = "SBOUL97.SBROAD97",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SBROAD97 %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SALEC97.SFAN97[, 2],
+  main = "SBOUL97.SALEC97.SFAN97",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool3Results$ResultsByLocus$SBOUL97.SALEC97.SFAN97 %>% 
+  arrange(pval)
+
+hist(
+  ChignikFisherPool3Results$ResultsByLocus$SBROAD97.SALEC97.SFAN97[, 2],
+  main = "SBROAD97.SALEC97.SFAN97",
+  breaks = seq(0, 1, by = 0.05),
+  xlab = "p-value"
+)
+
+ChignikFisherPool3Results$ResultsByLocus$SBROAD97.SALEC97.SFAN97 %>% 
+  arrange(pval)
+```
+
+None of the tests from Pool3 are great. The 'best' pairs are driven by markers that show clear differences in allele frequencies thus I chose to not pool.    
+
+### Conclusions ###
+
+After examining temporal collections and conducting pooling tests, I've settled on 16 populations for the Chignik 2018 baseline. This is a change from the previous 7 populations and is driven highly by the new RAD markers. Note that one population (SWESTF97) was excluded from this baseline due to the lack of metadata. The 2012 baseline included this group but the samples were eventually dropped from analyses. The new baseline consists of the following populations: 
+    
+    SBOUL97, SBROAD97, SBSPR97, SCHIA97E, SCHIA08, SCHIA97M, SCHIG98.SCHIG08, SCLRK97E, SCLARK08, SCUCU08, SHAT97E, SHAT08E, SWESTF08, SHAT96, SCLARK96, SALEC97.SFAN97
+    
+
+
+
+
+```{r SessionInfo}
+# for record keeping
+sessionInfo()
+```
 
 
 --- <i> BEGIN CODE ARCHIVE </i> ---
@@ -686,10 +1086,3 @@ For example, here are the allelee frequency plots and information for
 <!-- ``` -->
 
 --- <i> END CODE ARCHIVE </i> ---
-
-
-```{r SessionInfo}
-# for record keeping
-sessionInfo()
-```
-
