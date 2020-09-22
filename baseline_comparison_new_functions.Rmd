@@ -300,6 +300,18 @@ CombineLoci.GCL(sillyvec = ChignikCollections, markerset = c("One_GPDH2", "One_G
 CombineLoci.GCL(sillyvec = ChignikCollections, markerset = c("One_MHC2_251", "One_MHC2_190"), update = TRUE)
 ```
 
+Check out combined loci to see if it is done correctly
+```{r}
+LocusControl$alleles$One_MHC2_251.One_MHC2_190
+```
+
+Compare legal alleles in *LocusControl* with genotypes in a *.gcl* object
+```{r}
+SCHIA08.gcl %>% 
+  count(One_MHC2_251.One_MHC2_190)
+```
+
+
 ## Pool populations
 
 ```{r pool_baseline_populations_new}
@@ -420,3 +432,5 @@ all.equal(baseline_2018_chase, baseline_2020_develop)
 Fuuuuck, there are 179 differences. Since we are planning to use the `develop` baseline moving forward, I should investigate how big these differences are and potentially re-run some 2019-2020 mixtures to see if the differences matter in terms of stock comp...
 
 God damnit, the new functions failed for the combined markers! It looks like `CombineLoci.GCL` put the alleles in the wrong order, so `FreqPop.GCL` was not able to calculate the allele counts properly, because all of the counts look like *illegal* alleles (i.e. not in `LocusControl`). Need to do some digging in `CombineLoci.GCL` to see what the hell is going on, because `LocusControl` and the actual alleles in the .gcl objects do *NOT* agree (9/18/2020 KS).
+
+Update on 9/21/2020 (KS), we've fixed the `CombineLoci.GCL` function to properly deal with the two sets of combined loci (MHC and GDPH), but we still have differences between the *old* functions vs. *new* functions (largely different fish, due to reading in data and duplicate check). However, more concerningly, there are differences between Chase's baseline and both the *new* and *old* functions.
